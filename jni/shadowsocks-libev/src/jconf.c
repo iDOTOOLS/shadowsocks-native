@@ -97,9 +97,8 @@ void parse_addr(const char *str, ss_addr_t *addr)
     }
 }
 
-jconf_t *read_jconf(const char * file)
+jconf_t *read_jconf(const char *file)
 {
-
     static jconf_t conf;
 
     char *buf;
@@ -142,7 +141,7 @@ jconf_t *read_jconf(const char * file)
     if (obj->type == json_object) {
         int i, j;
         for (i = 0; i < obj->u.object.length; i++) {
-            char *name = obj->u.object.values[i].name;
+            char *name        = obj->u.object.values[i].name;
             json_value *value = obj->u.object.values[i].value;
             if (strcmp(name, "server") == 0) {
                 if (value->type == json_array) {
@@ -157,7 +156,22 @@ jconf_t *read_jconf(const char * file)
                 } else if (value->type == json_string) {
                     conf.remote_addr[0].host = to_string(value);
                     conf.remote_addr[0].port = NULL;
-                    conf.remote_num = 1;
+                    conf.remote_num          = 1;
+                }
+            } else if (strcmp(name, "port_password") == 0) {
+                if (value->type == json_object) {
+                    for (j = 0; j < value->u.object.length; j++) {
+                        if (j >= MAX_PORT_NUM) {
+                            break;
+                        }
+                        json_value *v = value->u.object.values[j].value;
+                        if (v->type == json_string) {
+                            conf.port_password[j].port = ss_strndup(value->u.object.values[j].name,
+                                                                    value->u.object.values[j].name_length);
+                            conf.port_password[j].password = to_string(v);
+                            conf.port_password_num         = j + 1;
+                        }
+                    }
                 }
             } else if (strcmp(name, "server_port") == 0) {
                 conf.remote_port = to_string(value);
@@ -173,6 +187,8 @@ jconf_t *read_jconf(const char * file)
                 conf.timeout = to_string(value);
             } else if (strcmp(name, "fast_open") == 0) {
                 conf.fast_open = value->u.boolean;
+            } else if (strcmp(name, "auth") == 0) {
+                conf.auth = value->u.boolean;
             } else if (strcmp(name, "nofile") == 0) {
                 conf.nofile = value->u.integer;
             } else if (strcmp(name, "nameserver") == 0) {
@@ -186,5 +202,4 @@ jconf_t *read_jconf(const char * file)
     free(buf);
     json_value_free(obj);
     return &conf;
-
 }

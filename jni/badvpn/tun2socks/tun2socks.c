@@ -71,9 +71,13 @@
 #include <generated/blog_channel_tun2socks.h>
 
 #ifdef ANDROID
+
+#include <ancillary.h>
+
 #include <sys/prctl.h>
 #include <sys/un.h>
 #include <structure/BAVL.h>
+
 BAVL connections_tree;
 typedef struct {
     BAddr local_addr;
@@ -193,6 +197,7 @@ struct {
     int tun_fd;
     int tun_mtu;
     int fake_proc;
+    char *sock_path;
     char *pid;
     char *dnsgw;
 #else
@@ -274,7 +279,7 @@ BPending lwip_init_job;
 
 // lwip netif
 int have_netif;
-struct netif netif;
+struct netif the_netif;
 
 // lwip TCP listener
 struct tcp_pcb *listener;
@@ -408,7 +413,6 @@ int main (int argc, char **argv)
         prctl(PR_SET_NAME, "com.idotools.vpn");
     }
 
-
     // handle --help and --version
     if (options.help) {
         print_version();
@@ -491,10 +495,58 @@ int main (int argc, char **argv)
 #ifdef ANDROID
     // use supplied file descriptor
 
+    int sock, fd;
+    struct sockaddr_un addr;
+
+    if ((sock = socket(AF_UNIX, SOCK_STREAM, 0)) == -1) {
+        BLog(BLOG_ERROR, "socket() failed: %s (socket sock = %d)\n", strerror(errno), sock);
+        goto fail2;
+    }
+
+    char *path = "/data/data/com.idotools.vpn/sock_path";
+    if (options.sock_path != NULL) {
+        path = options.sock_path;
+    }
+    unlink(path);
+    memset(&addr, 0, sizeof(addr));
+    addr.sun_family = AF_UNIX;
+    strncpy(addr.sun_path, path, sizeof(addr.sun_path)-1);
+
+    if (bind(sock, (struct sockaddr*)&addr, sizeof(addr)) == -1) {
+        BLog(BLOG_ERROR, "bind() failed: %s (sock = %d)\n", strerror(errno), sock);
+        close(sock);
+        goto fail2;
+    }
+
+    if (listen(sock, 5) == -1) {
+        BLog(BLOG_ERROR, "listen() failed: %s (sock = %d)\n", strerror(errno), sock);
+        close(sock);
+        goto fail2;
+    }
+
+    for (;;) {
+        int sock2;
+        struct sockaddr_un remote;
+        int t = sizeof(remote);
+        if ((sock2 = accept(sock, (struct sockaddr *)&remote, &t)) == -1) {
+            BLog(BLOG_ERROR, "accept() failed: %s (sock = %d)\n", strerror(errno), sock);
+            continue;
+        }
+        if (ancil_recv_fd(sock2, &fd)) {
+            BLog(BLOG_ERROR, "ancil_recv_fd: %s (sock = %d)\n", strerror(errno), sock2);
+            close(sock2);
+        } else {
+            close(sock2);
+            BLog(BLOG_INFO, "received fd = %d", fd);
+            break;
+        }
+    }
+    close(sock);
+
     struct BTap_init_data init_data;
     init_data.dev_type = BTAP_DEV_TUN;
     init_data.init_type = BTAP_INIT_FD;
-    init_data.init.fd.fd = options.tun_fd;
+    init_data.init.fd.fd = fd;
     init_data.init.fd.mtu = options.tun_mtu;
 
     if (!BTap_Init2(&device, &ss, init_data, device_error_handler, NULL)) {
@@ -600,7 +652,7 @@ int main (int argc, char **argv)
 
     // free netif
     if (have_netif) {
-        netif_remove(&netif);
+        netif_remove(&the_netif);
     }
 
 #ifdef ANDROID
@@ -673,6 +725,7 @@ void print_help (const char *name)
         "        [--tunmtu <mtu>]\n"
         "        [--dnsgw <dns_gateway_address>]\n"
         "        [--pid <pid_file>]\n"
+        "        [--sock-path <sock_path>]\n"
 #else
         "        [--tundev <name>]\n"
 #endif
@@ -725,6 +778,7 @@ int parse_arguments (int argc, char *argv[])
     options.tun_mtu = 1500;
     options.fake_proc = 0;
     options.pid = NULL;
+    options.sock_path = NULL;
 #else
     options.tundev = NULL;
 #endif
@@ -849,6 +903,14 @@ int parse_arguments (int argc, char *argv[])
                 return 0;
             }
             options.dnsgw = argv[i + 1];
+            i++;
+        }
+        else if (!strcmp(arg, "--sock-path")) {
+            if (1 >= argc - i) {
+                fprintf(stderr, "%s: requires an argument\n", arg);
+                return 0;
+            }
+            options.sock_path = argv[i + 1];
             i++;
         }
         else if (!strcmp(arg, "--pid")) {
@@ -1038,7 +1100,7 @@ int process_arguments (void)
 
     // parse IP6 address
     if (options.netif_ip6addr) {
-        if (!ipaddr6_parse_ipv6_addr(options.netif_ip6addr, &netif_ip6addr)) {
+        if (!ipaddr6_parse_ipv6_addr(MemRef_MakeCstr(options.netif_ip6addr), &netif_ip6addr)) {
             BLog(BLOG_ERROR, "netif ip6addr: incorrect");
             return 0;
         }
@@ -1150,25 +1212,25 @@ void lwip_init_job_hadler (void *unused)
     ip_addr_set_any(&gw);
 
     // init netif
-    if (!netif_add(&netif, &addr, &netmask, &gw, NULL, netif_init_func, netif_input_func)) {
+    if (!netif_add(&the_netif, &addr, &netmask, &gw, NULL, netif_init_func, netif_input_func)) {
         BLog(BLOG_ERROR, "netif_add failed");
         goto fail;
     }
     have_netif = 1;
 
     // set netif up
-    netif_set_up(&netif);
+    netif_set_up(&the_netif);
 
     // set netif pretend TCP
-    netif_set_pretend_tcp(&netif, 1);
+    netif_set_pretend_tcp(&the_netif, 1);
 
     // set netif default
-    netif_set_default(&netif);
+    netif_set_default(&the_netif);
 
     if (options.netif_ip6addr) {
         // add IPv6 address
-        memcpy(netif_ip6_addr(&netif, 0), netif_ip6addr.bytes, sizeof(netif_ip6addr.bytes));
-        netif_ip6_addr_set_state(&netif, 0, IP6_ADDR_VALID);
+        memcpy(netif_ip6_addr(&the_netif, 0), netif_ip6addr.bytes, sizeof(netif_ip6addr.bytes));
+        netif_ip6_addr_set_state(&the_netif, 0, IP6_ADDR_VALID);
     }
 
     // init listener
@@ -1286,7 +1348,7 @@ void device_read_handler_send (void *unused, uint8_t *data, int data_len)
     ASSERT_FORCE(pbuf_take(p, data, data_len) == ERR_OK)
 
     // pass pbuf to input
-    if (netif.input(p, &netif) != ERR_OK) {
+    if (the_netif.input(p, &the_netif) != ERR_OK) {
         BLog(BLOG_WARNING, "device read: input failed");
         pbuf_free(p);
     }
@@ -1723,6 +1785,9 @@ err_t listener_accept_func (void *arg, struct tcp_pcb *newpcb, err_t err)
 
     // set client not closed
     client->client_closed = 0;
+
+    // enable TCP_NODELAY
+    tcp_nagle_disable(client->pcb);
 
     // setup handler argument
     tcp_arg(client->pcb, client);

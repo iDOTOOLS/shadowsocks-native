@@ -63,6 +63,22 @@ typedef md_info_t digest_type_t;
 #define MAX_IV_LENGTH POLARSSL_MAX_IV_LENGTH
 #define MAX_MD_SIZE POLARSSL_MD_MAX_SIZE
 
+#elif defined(USE_CRYPTO_MBEDTLS)
+
+#include <mbedtls/cipher.h>
+#include <mbedtls/md.h>
+typedef mbedtls_cipher_info_t cipher_kt_t;
+typedef mbedtls_cipher_context_t cipher_evp_t;
+typedef mbedtls_md_info_t digest_type_t;
+#define MAX_KEY_LENGTH 64
+#define MAX_IV_LENGTH MBEDTLS_MAX_IV_LENGTH
+#define MAX_MD_SIZE MBEDTLS_MD_MAX_SIZE
+
+/* we must have MBEDTLS_CIPHER_MODE_CFB defined */
+#if !defined(MBEDTLS_CIPHER_MODE_CFB)
+#error Cipher Feedback mode a.k.a CFB not supported by your mbed TLS.
+#endif
+
 #endif
 
 #ifdef USE_CRYPTO_APPLECC
@@ -103,7 +119,7 @@ typedef struct {
 #endif
 
 #define SODIUM_BLOCK_SIZE   64
-#define CIPHER_NUM          17
+#define CIPHER_NUM          18
 
 #define NONE                -1
 #define TABLE               0
@@ -123,26 +139,57 @@ typedef struct {
 #define SEED_CFB            14
 #define SALSA20             15
 #define CHACHA20            16
+#define CHACHA20IETF        17
+
+#define ONETIMEAUTH_FLAG 0x10
+#define ADDRTYPE_MASK 0xF
+
+#define ONETIMEAUTH_BYTES 10U
+#define CLEN_BYTES 2U
+#define AUTH_BYTES (ONETIMEAUTH_BYTES + CLEN_BYTES)
 
 #define min(a, b) (((a) < (b)) ? (a) : (b))
 #define max(a, b) (((a) > (b)) ? (a) : (b))
 
-struct enc_ctx {
+typedef struct buffer {
+    size_t idx;
+    size_t len;
+    size_t capacity;
+    char   *array;
+} buffer_t;
+
+typedef struct chunk {
+    uint32_t idx;
+    uint32_t len;
+    uint32_t counter;
+    buffer_t *buf;
+} chunk_t;
+
+typedef struct enc_ctx {
     uint8_t init;
     uint64_t counter;
     cipher_ctx_t evp;
-};
+} enc_ctx_t;
 
-char * ss_encrypt_all(int buf_size, char *plaintext, ssize_t *len, int method);
-char * ss_decrypt_all(int buf_size, char *ciphertext, ssize_t *len, int method);
-char * ss_encrypt(int buf_size, char *plaintext, ssize_t *len,
-                  struct enc_ctx *ctx);
-char * ss_decrypt(int buf_size, char *ciphertext, ssize_t *len,
-                  struct enc_ctx *ctx);
-void enc_ctx_init(int method, struct enc_ctx *ctx, int enc);
+int ss_encrypt_all(buffer_t *plaintext, int method, int auth, size_t capacity);
+int ss_decrypt_all(buffer_t *ciphertext, int method, int auth, size_t capacity);
+int ss_encrypt(buffer_t *plaintext, enc_ctx_t *ctx, size_t capacity);
+int ss_decrypt(buffer_t *ciphertext, enc_ctx_t *ctx, size_t capacity);
+
+void enc_ctx_init(int method, enc_ctx_t *ctx, int enc);
 int enc_init(const char *pass, const char *method);
 int enc_get_iv_len(void);
 void cipher_context_release(cipher_ctx_t *evp);
 unsigned char *enc_md5(const unsigned char *d, size_t n, unsigned char *md);
+
+int ss_onetimeauth(buffer_t *buf, uint8_t *iv, size_t capacity);
+int ss_onetimeauth_verify(buffer_t *buf, uint8_t *iv);
+
+int ss_check_hash(buffer_t *buf, chunk_t *chunk, enc_ctx_t *ctx, size_t capacity);
+int ss_gen_hash(buffer_t *buf, uint32_t *counter, enc_ctx_t *ctx, size_t capacity);
+
+int balloc(buffer_t *ptr, size_t capacity);
+int brealloc(buffer_t *ptr, size_t len, size_t capacity);
+void bfree(buffer_t *ptr);
 
 #endif // _ENCRYPT_H
