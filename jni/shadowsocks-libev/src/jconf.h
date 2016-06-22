@@ -26,7 +26,7 @@
 #define MAX_REMOTE_NUM 10
 #define MAX_CONF_SIZE 128 * 1024
 #define MAX_DNS_NUM 4
-#define MAX_CONNECT_TIMEOUT 10
+#define MAX_CONNECT_TIMEOUT 120 //modify timeout
 #define MIN_UDP_TIMEOUT 10
 
 typedef struct {
