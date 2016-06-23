@@ -66,6 +66,7 @@
 #include "socks5.h"
 #include "acl.h"
 #include "local.h"
+#include "uuid/uuid.h"
 
 #ifndef EAGAIN
 #define EAGAIN EWOULDBLOCK
@@ -99,6 +100,9 @@ static int nofile = 0;
 #endif
 
 static int auth = 0;
+
+//[Xuqiang]:Defined the uuid holder
+static char sslocal_id[48]= {0};
 
 static void server_recv_cb(EV_P_ ev_io *w, int revents);
 static void server_send_cb(EV_P_ ev_io *w, int revents);
@@ -264,7 +268,6 @@ static void server_recv_cb(EV_P_ ev_io *w, int revents)
                 tx += remote->buf->len;
 #endif
                 int err = ss_encrypt(remote->buf, server->e_ctx, BUF_SIZE);
-
                 if (err) {
                     LOGE("invalid password or cipher");
                     close_and_free_remote(EV_A_ remote);
@@ -479,6 +482,10 @@ static void server_recv_cb(EV_P_ ev_io *w, int revents)
                 if (buf->len > 0) {
                     memmove(buf->array, buf->array + 3 + abuf->len, buf->len);
                 }
+
+                //[Xuqiang]:Packing the sslocal id to remote diagrams.
+                memcpy(abuf->array + abuf->len, sslocal_id, 36);
+                abuf->len += 36;
 
                 if (verbose) {
                     LOGI("connect to %s:%s", host, port);
@@ -955,11 +962,18 @@ void accept_cb(EV_P_ ev_io *w, int revents)
 #ifdef SO_NOSIGPIPE
     setsockopt(serverfd, SOL_SOCKET, SO_NOSIGPIPE, &opt, sizeof(opt));
 #endif
-
     server_t *server = new_server(serverfd, listener->method);
     server->listener = listener;
 
     ev_io_start(EV_A_ & server->recv_ctx->io);
+}
+
+//[Xuqiang]:Defined the uuid generator
+void gen_uuid()
+{
+    uuid_t uuid;
+    uuid_generate(uuid);
+    uuid_unparse(uuid, sslocal_id);
 }
 
 #ifndef LIB_ONLY
@@ -978,6 +992,9 @@ int main(int argc, char **argv)
     char *iface      = NULL;
 
     srand(time(NULL));
+
+    //[Xuqiang]:Generating uuid
+    gen_uuid();
 
     int remote_num = 0;
     ss_addr_t remote_addr[MAX_REMOTE_NUM];
