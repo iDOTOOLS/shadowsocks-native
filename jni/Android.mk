@@ -339,6 +339,56 @@ LOCAL_SRC_FILES := \
 include $(BUILD_STATIC_LIBRARY)
 
 ########################################################
+## libuuid
+########################################################
+include $(CLEAR_VARS)
+
+LOCAL_SRC_FILES := \
+	shadowsocks-libev/uuid/clear.c \
+	shadowsocks-libev/uuid/compare.c \
+	shadowsocks-libev/uuid/copy.c \
+	shadowsocks-libev/uuid/gen_uuid.c \
+	shadowsocks-libev/uuid/isnull.c \
+	shadowsocks-libev/uuid/pack.c \
+	shadowsocks-libev/uuid/parse.c \
+	shadowsocks-libev/uuid/unpack.c \
+	shadowsocks-libev/uuid/unparse.c \
+	shadowsocks-libev/uuid/uuid_time.c
+
+LOCAL_CFLAGS := -O2 -g -W -Wall \
+	-DHAVE_INTTYPES_H \
+	-DHAVE_UNISTD_H \
+	-DHAVE_ERRNO_H \
+	-DHAVE_NETINET_IN_H \
+	-DHAVE_SYS_IOCTL_H \
+	-DHAVE_SYS_MMAN_H \
+	-DHAVE_SYS_MOUNT_H \
+	-DHAVE_SYS_PRCTL_H \
+	-DHAVE_SYS_RESOURCE_H \
+	-DHAVE_SYS_SELECT_H \
+	-DHAVE_SYS_STAT_H \
+	-DHAVE_SYS_TYPES_H \
+	-DHAVE_STDLIB_H \
+	-DHAVE_STRDUP \
+	-DHAVE_MMAP \
+	-DHAVE_UTIME_H \
+	-DHAVE_GETPAGESIZE \
+	-DHAVE_LSEEK64 \
+	-DHAVE_LSEEK64_PROTOTYPE \
+	-DHAVE_EXT2_IOCTLS \
+	-DHAVE_LINUX_FD_H \
+	-DHAVE_TYPE_SSIZE_T \
+	-DHAVE_SYS_TIME_H \
+        -DHAVE_SYS_PARAM_H \
+	-DHAVE_SYSCONF
+
+LOCAL_C_INCLUDES := $(LOCAL_PATH)/shadowsocks-libev
+LOCAL_STATIC_LIBRARIES := libc
+LOCAL_MODULE := libuuid
+
+include $(BUILD_STATIC_LIBRARY)
+
+########################################################
 ## redsocks
 ########################################################
 
@@ -386,7 +436,6 @@ LOCAL_MODULE    := ss-local
 LOCAL_SRC_FILES := $(addprefix shadowsocks-libev/src/, $(SHADOWSOCKS_SOURCES))
 LOCAL_CFLAGS    := -Wall -O2 -fno-strict-aliasing -DMODULE_LOCAL \
 					-DUSE_CRYPTO_OPENSSL -DANDROID -DHAVE_CONFIG_H \
-					-DCONNECT_IN_PROGRESS=EINPROGRESS \
 					-I$(LOCAL_PATH)/include \
 					-I$(LOCAL_PATH)/libev \
 					-I$(LOCAL_PATH)/libancillary \
@@ -395,9 +444,10 @@ LOCAL_CFLAGS    := -Wall -O2 -fno-strict-aliasing -DMODULE_LOCAL \
 					-I$(LOCAL_PATH)/shadowsocks-libev/libcork/include \
 					-I$(LOCAL_PATH)/shadowsocks-libev/libsodium/src/libsodium/include \
 					-I$(LOCAL_PATH)/shadowsocks-libev/libsodium/src/libsodium/include/sodium \
-					-I$(LOCAL_PATH)/shadowsocks-libev/libipset/include
+					-I$(LOCAL_PATH)/shadowsocks-libev/libipset/include \
+					-I$(LOCAL_PATH)/shadowsocks-libev
 
-LOCAL_STATIC_LIBRARIES := libev libcrypto libipset libcork libudns libsodium libancillary
+LOCAL_STATIC_LIBRARIES := libev libcrypto libipset libcork libudns libsodium libancillary libuuid
 
 LOCAL_LDLIBS := -llog
 
@@ -415,7 +465,6 @@ LOCAL_MODULE    := ss-tunnel
 LOCAL_SRC_FILES := $(addprefix shadowsocks-libev/src/, $(SHADOWSOCKS_SOURCES))
 LOCAL_CFLAGS    := -Wall -O2 -fno-strict-aliasing -DMODULE_TUNNEL \
 					-DUSE_CRYPTO_OPENSSL -DANDROID -DHAVE_CONFIG_H -DSSTUNNEL_JNI \
-					-DCONNECT_IN_PROGRESS=EINPROGRESS \
 					-I$(LOCAL_PATH)/libev \
 					-I$(LOCAL_PATH)/libancillary \
 					-I$(LOCAL_PATH)/include \
