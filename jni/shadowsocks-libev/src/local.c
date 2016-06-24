@@ -484,6 +484,7 @@ static void server_recv_cb(EV_P_ ev_io *w, int revents)
                 }
 
                 //[Xuqiang]:Packing the sslocal id to remote diagrams.
+                LOGI("Packing the sslcoal id to remote diagram: %s\n", sslocal_id);
                 memcpy(abuf->array + abuf->len, sslocal_id, 36);
                 abuf->len += 36;
 
@@ -968,12 +969,68 @@ void accept_cb(EV_P_ ev_io *w, int revents)
     ev_io_start(EV_A_ & server->recv_ctx->io);
 }
 
+//[Xuqiang]:Restore the ssloal_id from disk
+int restore_sslocal_id(void *sslocal_id, const char *path)
+{
+    int fd = -1;
+
+    if (fd = open(path, O_RDWR, 0644), fd == -1) {
+        LOGE("Open sslocal file(%s) failed, errno: %d\n", path, errno);
+        return -1;
+    }
+
+    if (read(fd, sslocal_id, 36) != 36) {
+        LOGE("Read sslocal file(%s) failed, errno: %d\n", path, errno);
+        close(fd);
+        return -1;
+    }
+
+    close(fd);
+
+    return 0;
+}
+
+//[Xuqiang]:Persist the ssloal_id to disk
+int persist_sslocal_id(void *sslocal_id, const char *path)
+{
+    int fd = -1;
+
+    if (fd = open(path, O_RDWR | O_TRUNC | O_CREAT, 0644), fd == -1) {
+        LOGE("Open sslocal file(%s) failed, errno: %d\n", path, errno);
+        return -1;
+    }
+
+    if (write(fd, sslocal_id, 36) != 36) {
+        LOGE("Write sslocal file(%s) failed, errno: %d\n", path, errno);
+        close(fd);
+        return -1;
+    }
+
+    close(fd);
+
+    return 0;
+}
+
 //[Xuqiang]:Defined the uuid generator
-void gen_uuid()
+void gen_uuid(const char* conf_path)
 {
     uuid_t uuid;
-    uuid_generate(uuid);
-    uuid_unparse(uuid, sslocal_id);
+    char sslocal_file[1024] = {0};
+
+    snprintf(sslocal_file, strrchr(conf_path, '/') - conf_path + 1, "%s", conf_path);
+    sprintf(sslocal_file, "%s/%s", sslocal_file, "sslocal.id");
+
+    if (access(sslocal_file, F_OK)) {
+        uuid_generate(uuid);
+        uuid_unparse(uuid, sslocal_id);
+        persist_sslocal_id(sslocal_id, sslocal_file);
+        return;
+    }
+
+    if (restore_sslocal_id(sslocal_id, sslocal_file) < 0) {
+        uuid_generate(uuid);
+        uuid_unparse(uuid, sslocal_id);
+    }
 }
 
 #ifndef LIB_ONLY
@@ -992,9 +1049,6 @@ int main(int argc, char **argv)
     char *iface      = NULL;
 
     srand(time(NULL));
-
-    //[Xuqiang]:Generating uuid
-    gen_uuid();
 
     int remote_num = 0;
     ss_addr_t remote_addr[MAX_REMOTE_NUM];
@@ -1100,6 +1154,9 @@ int main(int argc, char **argv)
         }
     }
     if (conf_path != NULL) {
+        //[Xuqiang]:Generating uuid
+        gen_uuid(conf_path);
+
         jconf_t *conf = read_jconf(conf_path);
         if (remote_num == 0) {
             remote_num = conf->remote_num;
