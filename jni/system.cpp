@@ -18,26 +18,28 @@
 #define LOGW(...) do { __android_log_print(ANDROID_LOG_WARN, LOG_TAG, __VA_ARGS__); } while(0)
 #define LOGE(...) do { __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__); } while(0)
 
-jstring Java_com_idotools_vpn_shadowsocks_Ssjni_getabi(JNIEnv *env, jobject thiz) {
+jstring Java_com_github_shadowsocks_system_getabi(JNIEnv *env, jobject thiz) {
   AndroidCpuFamily family = android_getCpuFamily();
   uint64_t features = android_getCpuFeatures();
   const char *abi;
 
-  if (family == ANDROID_CPU_FAMILY_X86) {
+  LOGI("AndroidCpuFamily: %d\n", family);
+  if (family == ANDROID_CPU_FAMILY_X86 || family == ANDROID_CPU_FAMILY_X86_64) {
     abi = "x86";
-  } else if (family == ANDROID_CPU_FAMILY_MIPS) {
+  } else if (family == ANDROID_CPU_FAMILY_MIPS || family == ANDROID_CPU_FAMILY_MIPS64) {
     abi = "mips";
-  } else if (family == ANDROID_CPU_FAMILY_ARM) {
+  } else if (family == ANDROID_CPU_FAMILY_ARM || family == ANDROID_CPU_FAMILY_ARM64) {
     // if (features & ANDROID_CPU_ARM_FEATURE_ARMv7) {
     abi = "armeabi-v7a";
     // } else {
     //   abi = "armeabi";
     // }
   }
+  LOGI("AndroidCpuFamily ABI: %s\n", abi);
   return env->NewStringUTF(abi);
 }
 
-jint Java_com_idotools_vpn_shadowsocks_Ssjni_exec(JNIEnv *env, jobject thiz, jstring cmd) {
+jint Java_com_github_shadowsocks_system_exec(JNIEnv *env, jobject thiz, jstring cmd) {
     const char *cmd_str  = env->GetStringUTFChars(cmd, 0);
 
     pid_t pid;
@@ -60,11 +62,11 @@ jint Java_com_idotools_vpn_shadowsocks_Ssjni_exec(JNIEnv *env, jobject thiz, jst
     return 1;
 }
 
-void Java_com_idotools_vpn_shadowsocks_Ssjni_jniclose(JNIEnv *env, jobject thiz, jint fd) {
+void Java_com_github_shadowsocks_system_jniclose(JNIEnv *env, jobject thiz, jint fd) {
     close(fd);
 }
 
-jint Java_com_idotools_vpn_shadowsocks_Ssjni_sendfd(JNIEnv *env, jobject thiz, jint tun_fd, jstring path) {
+jint Java_com_github_shadowsocks_system_sendfd(JNIEnv *env, jobject thiz, jint tun_fd, jstring path) {
     int fd;
     struct sockaddr_un addr;
     const char *sock_str  = env->GetStringUTFChars(path, 0);
@@ -95,17 +97,17 @@ jint Java_com_idotools_vpn_shadowsocks_Ssjni_sendfd(JNIEnv *env, jobject thiz, j
     return 0;
 }
 
-static const char *classPathName = "com/idotools/vpn/shadowsocks/Ssjni";
+static const char *classPathName = "com/github/shadowsocks/System";
 
 static JNINativeMethod method_table[] = {
     { "jniclose", "(I)V",
-        (void*) Java_com_idotools_vpn_shadowsocks_Ssjni_jniclose },
+        (void*) Java_com_github_shadowsocks_system_jniclose },
     { "sendfd", "(ILjava/lang/String;)I",
-        (void*) Java_com_idotools_vpn_shadowsocks_Ssjni_sendfd },
+        (void*) Java_com_github_shadowsocks_system_sendfd },
     { "exec", "(Ljava/lang/String;)I",
-        (void*) Java_com_idotools_vpn_shadowsocks_Ssjni_exec },
+        (void*) Java_com_github_shadowsocks_system_exec },
     { "getABI", "()Ljava/lang/String;",
-        (void*) Java_com_idotools_vpn_shadowsocks_Ssjni_getabi }
+        (void*) Java_com_github_shadowsocks_system_getabi }
 };
 
 

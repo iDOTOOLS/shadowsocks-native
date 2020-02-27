@@ -402,6 +402,7 @@ REDSOCKS_SOURCES := base.c http-connect.c \
 LOCAL_STATIC_LIBRARIES := libevent
 
 LOCAL_MODULE := redsocks
+NDK_APP_DST_DIR := assets/$(TARGET_ARCH_ABI)
 LOCAL_SRC_FILES := $(addprefix redsocks/, $(REDSOCKS_SOURCES)) 
 LOCAL_CFLAGS := -O2 -std=gnu99 -DUSE_IPTABLES \
 	-I$(LOCAL_PATH)/redsocks \
@@ -419,6 +420,7 @@ include $(CLEAR_VARS)
 PDNSD_SOURCES  := $(wildcard $(LOCAL_PATH)/pdnsd/src/*.c)
 
 LOCAL_MODULE    := pdnsd
+NDK_APP_DST_DIR := assets/$(TARGET_ARCH_ABI)
 LOCAL_SRC_FILES := $(PDNSD_SOURCES:$(LOCAL_PATH)/%=%)
 LOCAL_CFLAGS    := -DANDROID -Wall -O2 -I$(LOCAL_PATH)/pdnsd
 
@@ -433,6 +435,7 @@ include $(CLEAR_VARS)
 SHADOWSOCKS_SOURCES := local.c cache.c udprelay.c encrypt.c utils.c netutils.c json.c jconf.c acl.c android.c
 
 LOCAL_MODULE    := ss-local
+NDK_APP_DST_DIR := assets/$(TARGET_ARCH_ABI)
 LOCAL_SRC_FILES := $(addprefix shadowsocks-libev/src/, $(SHADOWSOCKS_SOURCES))
 LOCAL_CFLAGS    := -Wall -O2 -fno-strict-aliasing -DMODULE_LOCAL \
 					-DUSE_CRYPTO_OPENSSL -DANDROID -DHAVE_CONFIG_H \
@@ -462,6 +465,7 @@ include $(CLEAR_VARS)
 SHADOWSOCKS_SOURCES := tunnel.c cache.c udprelay.c encrypt.c utils.c netutils.c json.c jconf.c android.c
 
 LOCAL_MODULE    := ss-tunnel
+NDK_APP_DST_DIR := assets/$(TARGET_ARCH_ABI)
 LOCAL_SRC_FILES := $(addprefix shadowsocks-libev/src/, $(SHADOWSOCKS_SOURCES))
 LOCAL_CFLAGS    := -Wall -O2 -fno-strict-aliasing -DMODULE_TUNNEL \
 					-DUSE_CRYPTO_OPENSSL -DANDROID -DHAVE_CONFIG_H -DSSTUNNEL_JNI \
@@ -481,16 +485,50 @@ LOCAL_LDLIBS := -llog
 include $(BUILD_EXECUTABLE)
 
 ########################################################
+## shadowsocks-libev local for pie
+########################################################
+
+include $(CLEAR_VARS)
+
+SHADOWSOCKS_SOURCES := local.c cache.c udprelay.c encrypt.c utils.c netutils.c json.c jconf.c acl.c android.c
+
+LOCAL_MODULE    := ss-local-pie
+NDK_APP_DST_DIR := assets/$(TARGET_ARCH_ABI)
+LOCAL_SRC_FILES := $(addprefix shadowsocks-libev/src/, $(SHADOWSOCKS_SOURCES))
+LOCAL_CFLAGS    := -Wall -O2 -fno-strict-aliasing -DMODULE_LOCAL \
+					-DUSE_CRYPTO_OPENSSL -DANDROID -DHAVE_CONFIG_H \
+					-I$(LOCAL_PATH)/include \
+					-I$(LOCAL_PATH)/libev \
+					-I$(LOCAL_PATH)/libancillary \
+					-I$(LOCAL_PATH)/openssl/include  \
+					-I$(LOCAL_PATH)/shadowsocks-libev/libudns \
+					-I$(LOCAL_PATH)/shadowsocks-libev/libcork/include \
+					-I$(LOCAL_PATH)/shadowsocks-libev/libsodium/src/libsodium/include \
+					-I$(LOCAL_PATH)/shadowsocks-libev/libsodium/src/libsodium/include/sodium \
+					-I$(LOCAL_PATH)/shadowsocks-libev/libipset/include \
+					-I$(LOCAL_PATH)/shadowsocks-libev
+
+LOCAL_CFLAGS += -pie -fPIE
+LOCAL_LDFLAGS += -pie -fPIE
+
+LOCAL_STATIC_LIBRARIES := libev libcrypto libipset libcork libudns libsodium libancillary libuuid
+
+
+LOCAL_LDLIBS := -llog
+
+include $(BUILD_EXECUTABLE)
+########################################################
 ## system
 ########################################################
 
 include $(CLEAR_VARS)
 
-LOCAL_MODULE:= ssjni
+LOCAL_MODULE:= system
+NDK_APP_DST_DIR := libs/$(TARGET_ARCH_ABI)
 
 LOCAL_C_INCLUDES:= $(LOCAL_PATH)/libancillary
 
-LOCAL_SRC_FILES:= ssjni.cpp
+LOCAL_SRC_FILES:= system.cpp
 
 LOCAL_LDLIBS := -ldl -llog
 
@@ -584,6 +622,7 @@ TUN2SOCKS_SOURCES := \
         udpgw_client/UdpGwClient.c
 
 LOCAL_MODULE := tun2socks
+NDK_APP_DST_DIR := assets/$(TARGET_ARCH_ABI)
 
 LOCAL_LDLIBS := -ldl -llog
 
